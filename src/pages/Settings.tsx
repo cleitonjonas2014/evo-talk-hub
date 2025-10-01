@@ -8,6 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Palette } from "lucide-react";
 
 export default function Settings() {
   const [settings, setSettings] = useState({
@@ -17,6 +20,7 @@ export default function Settings() {
     bot_greeting: "",
   });
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     fetchSettings();
@@ -74,6 +78,34 @@ export default function Settings() {
             Configure as integrações e personalize seu sistema
           </p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              <CardTitle>Tema</CardTitle>
+            </div>
+            <CardDescription>
+              Escolha o tema de cores do sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label htmlFor="theme">Tema de Cores</Label>
+              <Select value={theme} onValueChange={setTheme}>
+                <SelectTrigger id="theme">
+                  <SelectValue placeholder="Selecione um tema" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">☀️ Claro</SelectItem>
+                  <SelectItem value="dark">🌙 Escuro</SelectItem>
+                  <SelectItem value="theme-blue">💙 Azul</SelectItem>
+                  <SelectItem value="theme-red">❤️ Vermelho</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
