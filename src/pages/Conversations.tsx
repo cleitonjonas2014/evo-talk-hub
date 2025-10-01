@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Send, Search } from "lucide-react";
+import { Send, Search, Paperclip, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +25,8 @@ interface Message {
   sender_type: string;
   created_at: string;
   sender_id?: string;
+  message_type?: string;
+  file_url?: string | null;
   profiles?: {
     full_name: string;
   };
@@ -105,21 +107,68 @@ export default function Conversations() {
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConv) return;
 
-    const { error } = await supabase.from("messages").insert({
-      conversation_id: selectedConv.id,
-      content: newMessage,
-      sender_type: "agent",
-      sender_id: userId,
-    });
+    try {
+      const { error } = await supabase.functions.invoke("send-whatsapp-message", {
+        body: {
+          conversationId: selectedConv.id,
+          content: newMessage,
+          messageType: "text",
+        },
+      });
 
-    if (error) {
+      if (error) throw error;
+      
+      setNewMessage("");
+      toast({
+        title: "Enviado",
+        description: "Mensagem enviada com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao enviar:", error);
       toast({
         title: "Erro",
         description: "Não foi possível enviar a mensagem",
         variant: "destructive",
       });
-    } else {
-      setNewMessage("");
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedConv) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const { data, error } = await supabase.functions.invoke("upload-whatsapp-media", {
+        body: formData,
+      });
+
+      if (error) throw error;
+
+      const messageType = file.type.startsWith("image/") ? "image" : "document";
+      
+      await supabase.functions.invoke("send-whatsapp-message", {
+        body: {
+          conversationId: selectedConv.id,
+          content: file.name,
+          messageType,
+          fileUrl: `data:${file.type};base64,${data.file.data}`,
+        },
+      });
+
+      toast({
+        title: "Enviado",
+        description: "Arquivo enviado com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao enviar arquivo:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível enviar o arquivo",
+        variant: "destructive",
+      });
     }
   };
 
@@ -204,7 +253,7 @@ export default function Conversations() {
                       msg.sender_type === "agent" ? "justify-end" : "justify-start"
                     }`}
                   >
-                    <div
+                     <div
                       className={`max-w-[70%] rounded-lg p-3 ${
                         msg.sender_type === "agent"
                           ? "bg-primary text-primary-foreground"
@@ -213,7 +262,16 @@ export default function Conversations() {
                           : "bg-muted"
                       }`}
                     >
-                      <p>{msg.content}</p>
+                      {msg.message_type === "image" && msg.file_url && (
+                        <img src={msg.file_url} alt="Imagem" className="max-w-full rounded mb-2" />
+                      )}
+                      {msg.message_type === "document" && msg.file_url && (
+                        <a href={msg.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 mb-2 underline">
+                          <Paperclip className="h-4 w-4" />
+                          Abrir documento
+                        </a>
+                      )}
+                      <p className="whitespace-pre-wrap break-words">{msg.content}</p>
                       <p className="text-xs mt-1 opacity-70">
                         {formatDistanceToNow(new Date(msg.created_at), {
                           addSuffix: true,
@@ -227,11 +285,26 @@ export default function Conversations() {
 
               <div className="p-4 border-t border-border">
                 <div className="flex gap-2">
+                  <input
+                    type="file"
+                    id="file-upload"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                    accept="image/*,application/pdf,.doc,.docx"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => document.getElementById("file-upload")?.click()}
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
                   <Input
-                    placeholder="Digite sua mensagem..."
+                    placeholder="Digite sua mensagem... (emojis suportados 😊)"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    className="flex-1"
                   />
                   <Button onClick={sendMessage}>
                     <Send className="h-4 w-4" />
